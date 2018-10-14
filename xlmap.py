@@ -1,4 +1,5 @@
 import openpyxl
+import json
 
 
 def get_rect_from_range(range_str):
@@ -37,7 +38,7 @@ def get_border_lines(border, rect):
     return result
 
 
-wb = openpyxl.load_workbook('m1.xlsx')
+wb = openpyxl.load_workbook('map.xlsx')
 
 ws = wb.worksheets[0]
 
@@ -45,23 +46,26 @@ data_top, data_left, data_bottom, data_right = get_rect_from_range(
     ws.calculate_dimension())
 
 
-print(data_top, data_left, data_bottom, data_right)
+# print(data_top, data_left, data_bottom, data_right)
 
-col_width = []
+col_width = [0]
+row_height = [0]
 
-row_height = []
-
-for i in range(data_left+1, data_right+1):
+for i in range(1, data_right+1):
     col_letter = openpyxl.utils.get_column_letter(i)
     col_width.append(ws.column_dimensions[col_letter].width)
 
-for i in range(data_top+1, data_bottom+1):
+for i in range(1, data_bottom+1):
     row_height.append(ws.row_dimensions[i].height)
 
-print(row_height)
-print(col_width)
+unit_width = ws.column_dimensions['A'].width
+unit_height = ws.row_dimensions[1].height
+# print('UNIT:', (unit_width, unit_height))
 
-border_lines = []
+# print(row_height)
+# print(col_width)
+
+border_lines = set()
 for i in range(data_top+1, data_bottom+1):
     for j in range(data_left+1, data_right+1):
         is_merged = False
@@ -70,8 +74,12 @@ for i in range(data_top+1, data_bottom+1):
                 # print('In merged ', m.coord, get_rect_from_range(m.coord), (i, j), get_border_lines(
                 #       ws.cell(i, j).border, get_rect_from_range(m.coord)))
 
-                border_lines += get_border_lines(
+                # border_lines += get_border_lines(
+                #     ws.cell(i, j).border, get_rect_from_range(m.coord))
+                lines = get_border_lines(
                     ws.cell(i, j).border, get_rect_from_range(m.coord))
+                for l in lines:
+                    border_lines.add(l)
                 is_merged = True
                 break
 
@@ -80,7 +88,93 @@ for i in range(data_top+1, data_bottom+1):
             coord = cell.coordinate
             # print(coord, get_border_lines(cell.border,
             #                               get_rect_from_range('%s:%s' % (coord, coord))))
-            border_lines += get_border_lines(cell.border,
-                                             get_rect_from_range('%s:%s' % (coord, coord)))
-print(border_lines)
+            lines = get_border_lines(cell.border,
+                                     get_rect_from_range('%s:%s' % (coord, coord)))
+            for l in lines:
+                border_lines.add(l)
 
+        cell = ws.cell(i, j)
+        try:
+            valuestr = str(cell.internal_value)
+            sp = valuestr.split(',')
+            rangestr = sp[0]
+            directionstr = sp[1]
+            rect = get_rect_from_range(rangestr)
+            l = None
+            left = 1
+            top = 0
+            right = 3
+            bottom = 2
+            if directionstr == 'down':
+                l = (rect[top], rect[left], rect[bottom], rect[right])
+            elif directionstr == 'up':
+                l = (rect[bottom], rect[left], rect[top], rect[right])
+
+            if l:
+                # print("DEBUG:", l, rect, rangestr)
+                border_lines.add(l)
+        except Exception as e:
+            pass
+
+
+# print(border_lines)
+
+
+def get_real_height(lineHeight):
+    return lineHeight/unit_height
+
+
+def get_real_width(rowWidth):
+    return rowWidth/unit_width
+
+
+def get_xl_height(lineHeight):
+    return lineHeight*unit_height
+
+
+def get_xl_width(rowWidth):
+    return rowWidth*unit_width
+
+
+ruller_vertical = [0, 0]
+ruller_horizontal = [0, 0]
+for i in range(2, data_bottom+1):
+    height = 0
+    try:
+        height = float(ws.cell(i, 1).internal_value)
+    except TypeError as e:
+        xl_height = row_height[i]
+        if xl_height == None:
+            xl_height = 13.5
+        height = get_real_height(xl_height)
+        ws.cell(i, 1).value = str(height)
+
+    ws.row_dimensions[i].height = get_xl_height(height)
+    ruller_vertical.append(
+        ruller_vertical[i-1] + height)
+
+for j in range(2, data_right+1):
+    width = 0
+    try:
+        width = float(ws.cell(1, j).internal_value)
+    except TypeError as e:
+        xl_width = col_width[j]  # if col_width[j] is not None else 8.25
+        if xl_width == None:
+            xl_width = 8.25
+        width = get_real_width(xl_width)
+        ws.cell(1, j).value = str(width)
+
+    col_letter = openpyxl.utils.get_column_letter(j)
+    ws.column_dimensions[col_letter].width = get_xl_width(width)
+    # print(width, get_xl_width(width))
+    ruller_horizontal.append(
+        ruller_horizontal[j-1]+width)
+
+# print(ruller_horizontal)
+# print(ruller_vertical)
+
+wb.save('map_formated.xlsx')
+
+
+json.dump({'xs': ruller_horizontal, 'ys': ruller_vertical,
+           'edges': [l for l in border_lines]}, open('data.json', 'w'))

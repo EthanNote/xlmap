@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <!-- <script id="data" src="./data.json"></script> -->
+    <script src="./static/vue.min.js"></script>
+    <style>
+        line {
+            stroke: gray;
+            stroke-width: 0.5
+        }
+    </style>
+</head>
+
+<body>
+    <div id="dataview" onmousedown="down()" onmouseup="up()" onmousemove="move()">
+        <svg id="svg" viewBox="0,0,500,500" width="100%" height="100%">
+            <g>
+                <line v-for="l in lines" :x1="l[0]" :y1="l[1]" :x2="l[2]" :y2="l[3]" />
+            </g>
+        </svg>
+    </div>
+    <script>
+        var vm = new Vue({
+            el: "#dataview",
+            data: {
+                edgedata: null,
+                pos: {
+                    x: 5,
+                    y: 5
+                },
+                zoom: 10
+            },
+
+            computed: {
+
+                lines: function () {
+                    result = []
+                    if (this.edgedata) {
+                        for (let i = 0; i < this.edgedata.edges.length; i++) {
+                            result.push([
+                                this.pos.x + this.zoom * this.edgedata.xs[this.edgedata.edges[i][1]],
+                                this.pos.y + this.zoom * this.edgedata.ys[this.edgedata.edges[i][0]],
+                                this.pos.x + this.zoom * this.edgedata.xs[this.edgedata.edges[i][3]],
+                                this.pos.y + this.zoom * this.edgedata.ys[this.edgedata.edges[i][2]]])
+                        }
+                    }
+                    return result;
+                }
+
+            }
+        })
+
+        fetch('./data.json').then(function (response) {
+            response.json().then(function (json) {
+                vm._data.edgedata = json;
+            })
+        })
+    </script>
+    <script>
+
+        /*
+         * 分析：
+         * 获取鼠标实时移动的坐标；m_move_x,m_move_y
+         * 鼠标按下时的坐标；m_down_x,m_down_y
+         * div的坐标；dx,dy
+         * 鼠标按下时，鼠标与div的偏移量；md_x,md_y
+         * div的新坐标；ndx,ndy
+         */
+
+        var isDown = false;//记录鼠标状态
+        var oldX, oldY
+        //鼠标按下
+        function down() {
+            move_div = document.getElementById("move_div");
+            isDown = true;
+
+            //获取鼠标按下时坐标
+            oldX = event.pageX;
+            oldY = event.pageY;
+
+        }
+
+        //鼠标移动
+        function move() {
+            newX = event.pageX;
+            newY = event.pageY;
+
+            //鼠标按下时移动才触发
+            if (isDown) {
+                zoomRate=500/document.getElementById('dataview').clientWidth;
+                vm._data.pos.x += (newX - oldX)*zoomRate;
+                vm._data.pos.y += (newY - oldY)*zoomRate;
+                oldX = newX;
+                oldY = newY;
+
+
+            }
+
+        }
+
+        //鼠标释放
+        function up() {
+            isDown = false;
+        }
+
+
+    </script>
+</body>
+
+</html>
