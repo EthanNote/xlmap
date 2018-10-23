@@ -57,7 +57,7 @@
 
         fetch('./data.json').then(function (response) {
             response.json().then(function (json) {
-                vm._data.edgedata = json;
+                vm._data.edgedata = json.response;
             })
         })
     </script>
