@@ -9,9 +9,14 @@
     <!-- <script id="data" src="./data.json"></script> -->
     <script src="./static/vue.min.js"></script>
     <style>
-        line {
+        line, polyline {
             stroke: gray;
             stroke-width: 0.5
+        }
+
+        polyline{
+            stroke: red;
+            fill: transparent
         }
     </style>
 </head>
@@ -19,8 +24,11 @@
 <body>
     <div id="dataview" onmousedown="down()" onmouseup="up()" onmousemove="move()">
         <svg id="svg" viewBox="0,0,500,500" width="100%" height="100%">
-            <g>
+            <g :transform="transform_str">
                 <line v-for="l in lines" :x1="l[0]" :y1="l[1]" :x2="l[2]" :y2="l[3]" />
+            </g>
+            <g :transform="transform_str">
+                <polyline v-for="l in polylines" :points="l"></polyline>
             </g>
         </svg>
     </div>
@@ -33,11 +41,23 @@
                     x: 5,
                     y: 5
                 },
-                zoom: 10
+                zoom: 10,
+                pathdata: [[{ "x": 0, "y": 0 }, { "x": 200, "y": 300 }]],
+
+                transform: {
+                    translate: {
+                        x: 0,
+                        y: 0
+                    }
+                }
             },
 
-            computed: {
 
+            computed: {
+                transform_str: function () {
+                    var self = this;
+                    return `translate(${self.transform.translate.x}, ${self.transform.translate.y})`
+                },
                 lines: function () {
                     result = []
                     if (this.edgedata) {
@@ -50,6 +70,19 @@
                         }
                     }
                     return result;
+                },
+                polylines: function () {
+                    result = []
+                    if (this.pathdata) {
+                        for (let i = 0; i < this.pathdata.length; i++) {
+                            let XYs = []
+                            for (let j = 0; j < this.pathdata[i].length; j++) {
+                                XYs.push([this.pos.x+this.zoom* this.pathdata[i][j].x, this.pos.y+this.zoom*this.pathdata[i][j].y].join(','))
+                            }
+                            result.push(XYs.join(' '));
+                        }
+                    }
+                    return result;
                 }
 
             }
@@ -58,6 +91,13 @@
         fetch('./data.json').then(function (response) {
             response.json().then(function (json) {
                 vm._data.edgedata = json.response;
+            })
+        })
+
+        fetch('http://118.24.241.17:8088/path.json').then(function (response) {
+            response.json().then(function (json) {
+                vm._data.pathdata = json;
+                console.log(json)
             })
         })
     </script>
@@ -92,13 +132,11 @@
 
             //鼠标按下时移动才触发
             if (isDown) {
-                zoomRate=500/document.getElementById('dataview').clientWidth;
-                vm._data.pos.x += (newX - oldX)*zoomRate;
-                vm._data.pos.y += (newY - oldY)*zoomRate;
+                zoomRate = 500 / document.getElementById('dataview').clientWidth;
+                vm._data.transform.translate.x += (newX - oldX) * zoomRate;
+                vm._data.transform.translate.y += (newY - oldY) * zoomRate;
                 oldX = newX;
                 oldY = newY;
-
-
             }
 
         }
